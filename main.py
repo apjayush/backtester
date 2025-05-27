@@ -8,8 +8,8 @@ def fetch_stock_data(ticker, start_date, end_date):
 
 if __name__ == "__main__":
     # Fetch stock data
-    stock = "APOLLO.NS"
-    start_date = "2025-05-10"
+    stock = "KFINTECH.NS"
+    start_date = "2024-05-01"
     end_date = "2025-05-26"
     data = fetch_stock_data(stock, start_date, end_date)
 

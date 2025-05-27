@@ -2,6 +2,7 @@ class Backtester:
     def __init__(self, data, algorithms):
         self.data = data
         self.algorithms = algorithms
+        # self.stock = stock
 
     def run(self):
         results = {}
