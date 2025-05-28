@@ -1,10 +1,22 @@
 from strategy.BaseStrategy import TradingAlgorithm
+import yfinance as yf
+
 
 class MovingAverageCrossover(TradingAlgorithm):
-    def __init__(self):
+    def __init__(self, stock, start_date, end_date, timeframe='1d'):
         super().__init__("Moving Average Crossover")
+        self.stock = stock
+        self.start_date = start_date
+        self.end_date = end_date
+        self.timeframe = timeframe
+        self.data = self._fetch_stock_data()
 
-    def apply_strategy(self, data):
+    def _fetch_stock_data(self):
+        data = yf.download(self.stock, start=self.start_date, end=self.end_date, interval=self.timeframe)
+        return data
+
+    def apply_strategy(self, data=None):
+        data = self.data
         # Calculate 9 EMA and 21 EMA
         data['EMA_9'] = data['Close'].ewm(span=9, adjust=False).mean()
         data['EMA_21'] = data['Close'].ewm(span=21, adjust=False).mean()
@@ -15,12 +27,14 @@ class MovingAverageCrossover(TradingAlgorithm):
         data.loc[(data['EMA_9'] < data['EMA_21']) & (data['EMA_9'].shift(1) >= data['EMA_21'].shift(1)), 'Signal'] = -1  # Sell signal
 
         ticker = data['Close'].columns[0]
-        print("Ticker:", ticker)
-        # print(data)
+        # print("Ticker:", ticker)
+
+        print(data)
         # Initialize variables for tracking positions and returns
         position = 0  # Number of shares held
         buy_price = 0  # Price at which the stock was bought
-        total_profit = []  # Total profit/loss
+        total_profit = []  # Total profit/loss\
+        returns = []  # List to store returns for each trade
 
 
         for i in range(1, len(data)):
@@ -42,6 +56,7 @@ class MovingAverageCrossover(TradingAlgorithm):
                     print("Sold at price:", data['Close'].iloc[i][ticker])
                     profit = (data['Close'].iloc[i][ticker] - buy_price)  # Gain/loss from the trade
                     total_profit.append(profit)
+                    returns.append((profit / buy_price)*100)  # Calculate return for this trade
                     position = 0  # Reset position after selling
                     buy_price = 0  # Reset buy price
 
@@ -50,6 +65,7 @@ class MovingAverageCrossover(TradingAlgorithm):
                 elif data['Signal'].iloc[i] == -1:
                     profit = (data['Close'].iloc[i][ticker] - buy_price)  # Gain/loss from the trade
                     total_profit.append(profit)
+                    returns.append((profit / buy_price)*100) # Calculate return for this trade
                     position = 0  # Reset position after selling
                     buy_price = 0  # Reset buy price
                 
@@ -59,6 +75,8 @@ class MovingAverageCrossover(TradingAlgorithm):
                 
                
         print("Total Profit/Loss:", sum(total_profit))
-        print()
+        print("Total Returns:", (returns))
+
+        print("total average return:", sum(returns)/len(returns) if returns else 0)
         # Return the total profit/loss as a percentage of the initial balance
         return (total_profit / data['Close'].iloc[0]) * 100
