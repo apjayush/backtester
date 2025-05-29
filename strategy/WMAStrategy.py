@@ -15,70 +15,71 @@ class WMACrossoverStrategy(TradingAlgorithm):
         data = yf.download(self.stock, start=self.start_date, end=self.end_date, interval=self.timeframe)
         return data
 
-    # def _calculate_wma(self, series, period=20):
-    #     weights = pd.Series(range(1, period + 1))
-    #     return series.rolling(window=period).apply(
-    #         lambda x: (x * weights).sum() / weights.sum()
-    #     )
+        # data.index = data.index.tz_convert('Asia/Kolkata')
+        # return data
 
-    def _calculate_wma(self, series, period=20):
-        """Calculate Weighted Moving Average using simple range multiplication"""
-        return series.rolling(window=period).apply(
-            lambda x: (x * range(1, period + 1)).sum() / sum(range(1, period + 1)),
+    def apply_strategy(self, data=None):
+        data = self.data.copy()
+
+        data = data.dropna()
+        # Reset index to ensure proper indexing after dropping rows
+        data = data.reset_index()
+
+        
+        # Calculate WMA20
+        data['WMA20'] = data['Close'].rolling(window=20).apply(
+            lambda x: (x * range(1, 21)).sum() / sum(range(1, 21)),
             raw=True
         )
 
-    def apply_strategy(self, data=None):
-        data = self.data.copy()  # Create a copy to avoid modifying original data
-
-        
-        # Calculate 20-period WMA
-        data['WMA20'] = self._calculate_wma(data['Close'], 20)
-        
-        # Generate buy/sell signals
         data['Signal'] = 0
 
-        print(data)
-
-        print("***************")
+        # Create a new DataFrame with just Close and WMA20 columns to ensure alignment
+        trading_data = pd.DataFrame()
         
-        # Create conditions for buy/sell signals
-        buy_condition = (data['Close'] > data['WMA20']) & (data['Close'].shift(1) <= data['WMA20'].shift(1))
-        sell_condition = (data['Close'] < data['WMA20']) & (data['Close'].shift(1) >= data['WMA20'].shift(1))
-        
-        # Apply signals
-        data.loc[buy_condition, 'Signal'] = 1
-        data.loc[sell_condition, 'Signal'] = -1
+        # Create aligned DataFrame with required columns
+        trading_data['Open'] = data['Open']
+        trading_data['High'] = data['High']
+        trading_data['Low'] = data['Low']
+        trading_data['Close'] = data['Close']
+        trading_data['WMA20'] = data['WMA20']
+        trading_data['Signal'] = 0
 
-        print(data)
+        # Generate buy/sell signals using trading_data
+        trading_data.loc[(trading_data['Close'] > trading_data['WMA20']) & 
+                        (trading_data['Close'].shift(1) <= trading_data['WMA20'].shift(1)), 'Signal'] = 1  # Buy signal
+        trading_data.loc[(trading_data['Close'] < trading_data['WMA20']) & 
+                        (trading_data['Close'].shift(1) >= trading_data['WMA20'].shift(1)), 'Signal'] = -1  # Sell signal
+
+
+
         # Initialize tracking variables
         position = 0
         buy_price = 0
         total_profit = []
         returns = []
 
-        print
-
-        # Loop through the data to implement trading logic
-        for i in range(1, len(data)):
-            current_price = data['Close'].iloc[i]
-            
-            # Buy signal
-            if data['Signal'].iloc[i] == 1 and position == 0:
+            # Implement backtesting loop
+        for i in range(1, len(trading_data)):
+        # Buy Signal
+            if trading_data['Signal'].iloc[i] == 1 and position == 0:
                 position = 1
-                buy_price = current_price
-                print(f"Bought at price: {buy_price}")
-
-            # Manage position
-            if position == 1:
-                # Set stop loss and target
+                buy_price = float(trading_data['Close'].iloc[i])
+                print(f"\nBuy Signal at {trading_data.index[i]}")
+                print(f"Buy Price: {buy_price:.2f}")
+            
+            # Check for exit conditions if in position
+            elif position == 1:
+                current_price = float(trading_data['Close'].iloc[i])
+                
+                # Calculate stop loss and target
                 stop_loss = buy_price * 0.98
                 target_price = buy_price * 1.05
-
-                # Check for exit conditions
+                
+                # Exit conditions
                 if (current_price <= stop_loss or 
                     current_price >= target_price or 
-                    data['Signal'].iloc[i] == -1):
+                    trading_data['Signal'].iloc[i] == -1):
                     
                     profit = current_price - buy_price
                     returns_pct = (profit / buy_price) * 100
@@ -86,15 +87,22 @@ class WMACrossoverStrategy(TradingAlgorithm):
                     total_profit.append(profit)
                     returns.append(returns_pct)
                     
-                    print(f"Sold at price: {current_price}")
-                    print(f"Trade return: {returns_pct:.2f}%")
+                    print(f"\nSell Signal at {trading_data.index[i]}")
+                    print(f"Sell Price: {current_price:.2f}")
+                    print(f"Trade Return: {returns_pct:.2f}%")
                     
                     position = 0
                     buy_price = 0
-
+        
+        # Print backtest results
         if returns:
             avg_return = sum(returns) / len(returns)
-            print(f"Total Profit/Loss: {sum(total_profit):.2f}")
+            total_profit_sum = sum(total_profit)
+            print(f"\nBacktesting Results for {self.stock}:")
+            print(f"Number of Trades: {len(returns)}")
+            print(f"Total Profit/Loss: {total_profit_sum:.2f}")
             print(f"Average Return per Trade: {avg_return:.2f}%")
-            return avg_return
-        return 0
+            return trading_data, avg_return
+        
+        print(f"\nNo trades executed for {self.stock}")
+        return trading_data, 0
