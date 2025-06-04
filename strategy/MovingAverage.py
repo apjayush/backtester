@@ -35,8 +35,7 @@ class MovingAverageCrossover(TradingAlgorithm):
         ticker = data['Close'].columns[0]
         # print("Ticker:", ticker)
 
-        print(data)
-        # Initialize variables for tracking positions and returns
+        print(data)    # Initialize variables for tracking positions and returns
         position = 0  # Number of shares held
         buy_price = 0  # Price at which the stock was bought
         total_profit = []  # Total profit/loss\
@@ -49,13 +48,20 @@ class MovingAverageCrossover(TradingAlgorithm):
             if data['Signal'].iloc[i] == 1 and position == 0:
                 position = 1  # Buy one share
                 buy_price = data['Close'].iloc[i][ticker]  # Record the buy price
+                previous_close = buy_price  # Initialize previous closing price
+                stop_loss = buy_price * 0.96  # 4% below buy price
+                target_price = buy_price * 1.12  # 12% above buy price
                 print("Bought at price:", buy_price)
 
             # Check for sell conditions
             if position == 1:
-                # Calculate stop loss and target prices
-                stop_loss = buy_price * 0.96  # 4% below buy price
-                target_price = buy_price * 1.12  # 12% above buy price
+                # Adjust trailing stop loss if price moves in favor
+
+                if data['Close'].iloc[i][ticker] > previous_close:
+                    stop_loss = max(stop_loss, data['Close'].iloc[i][ticker] * 0.98)  # Move stop loss up to 2% below current price
+                    previous_close = data['Close'].iloc[i][ticker]  # Update previous closing price
+                    print("Trailing Stop Loss updated to:", stop_loss)
+                    
 
                 # # # # Check if stop loss or target is hit
                 if data['Close'].iloc[i][ticker] <= stop_loss or data['Close'].iloc[i][ticker] >= target_price:
@@ -83,7 +89,7 @@ class MovingAverageCrossover(TradingAlgorithm):
                
         print("Total Profit/Loss:", sum(total_profit))
         # print("Total Returns:", (returns))
-
+        print("Total Trades:", len(total_profit))
         print("Average return per trade:", sum(total_profit)/len(returns) if returns else 0)
         # Return the total profit/loss as a percentage of the initial balance
         return (total_profit / data['Close'].iloc[0]) * 100
