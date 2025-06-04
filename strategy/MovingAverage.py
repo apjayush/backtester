@@ -13,10 +13,16 @@ class MovingAverageCrossover(TradingAlgorithm):
 
     def _fetch_stock_data(self):
         data = yf.download(self.stock, start=self.start_date, end=self.end_date, interval=self.timeframe)
+        data.index = data.index.tz_convert('Asia/Kolkata')
         return data
 
     def apply_strategy(self, data=None):
-        data = self.data
+        data = self.data.copy()
+
+        data = data.dropna()
+        data = data.drop(columns=['Volume'])
+
+        data = data.reset_index()
         # Calculate 9 EMA and 21 EMA
         data['EMA_9'] = data['Close'].ewm(span=9, adjust=False).mean()
         data['EMA_21'] = data['Close'].ewm(span=21, adjust=False).mean()
@@ -63,6 +69,7 @@ class MovingAverageCrossover(TradingAlgorithm):
 
                 # # # Check if 9 EMA crosses below 21 EMA
                 elif data['Signal'].iloc[i] == -1:
+                    print("Sold at price:", data['Close'].iloc[i][ticker])
                     profit = (data['Close'].iloc[i][ticker] - buy_price)  # Gain/loss from the trade
                     total_profit.append(profit)
                     returns.append((profit / buy_price)*100) # Calculate return for this trade
@@ -75,8 +82,8 @@ class MovingAverageCrossover(TradingAlgorithm):
                 
                
         print("Total Profit/Loss:", sum(total_profit))
-        print("Total Returns:", (returns))
+        # print("Total Returns:", (returns))
 
-        print("total average return:", sum(returns)/len(returns) if returns else 0)
+        print("Average return per trade:", sum(total_profit)/len(returns) if returns else 0)
         # Return the total profit/loss as a percentage of the initial balance
         return (total_profit / data['Close'].iloc[0]) * 100
